@@ -55,7 +55,6 @@ class Pyqtgraph_app(QMainWindow):
         self.run_app()
 
     def init_args(self):
-        #vars = objectify.Element("item")
         self.nb_plots = NB_PLOTS
         self.delay = DELAY
         self.save = SAVE
@@ -108,9 +107,25 @@ class Pyqtgraph_app(QMainWindow):
         file_menu.addAction('Save parameters', self.saveParametersCall)
 
     def saveParametersCall(self):
+
+        vars = objectify.Element("item")
+        vars.nb_plots = self.nb_plots
+        vars.delay = self.delay
+        vars.save = self.save
+        vars.Headers = self.Headers
+        vars.Footer = self.Footer
+        vars.stream_time = self.stream_time
+        vars.stream_spect = self.stream_spect
+
+        vars.ip = str(self.ip)
+        vars.port = str(self.port)
+        vars.channel = str(self.channel)
+        vars.nb_chan = str(self.nb_chan)
+        vars.Format = str(self.Format)
+
         def_name = time.strftime("%Y%m%d-%H%M%S", time.gmtime(time.time())) + "-myParameters.xml"
         filename = QFileDialog.getSaveFileName(self, 'File name', def_name, "Xml files (*.xml);;All Files (*)")
-        print("save call")
+
         if filename[0] == '' :
             print('Parameters not saved')
         else:
@@ -119,11 +134,37 @@ class Pyqtgraph_app(QMainWindow):
             except:
                 pass
             with open(filename[0], 'wb') as f:
-                f.write(lxml.etree.tostring(vars, pretty_print="true"))
+                f.write(lxml.etree.tostring(vars, pretty_print="true", with_tail=False))
             print('Parameters saved to ' + filename[0])
 
     def loadParametersCall(self):
-        print("load call")
+        filename = QFileDialog.getOpenFileName(self, 'File name', '', "Xml files (*.xml);;All Files (*)")
+        print(filename[0])
+        if filename[0] == '' :
+            print('Parameters not loaded')
+        else:
+            with open(filename[0], 'r') as f:
+                lf = objectify.fromstring(f.read())
+
+            prev_nb_plots = self.nb_plots
+
+            self.p.param('Plot parameters', 'Refresh time:').setValue(lf.delay)
+            self.p.param('Data log options', 'Save').setValue(lf.save)
+            self.p.param('Data log options', 'Header:').setValue(lf.Headers)
+            self.p.param('Data log options', 'Footer:').setValue(lf.Footer)
+            self.p.param('Plot parameters', 'Time stream:').setValue(lf.stream_time)
+            self.p.param('Plot parameters', 'Spectrum stream:').setValue(lf.stream_spect)
+            self.p.param('Plot parameters', 'Number of plots:').setValue(lf.nb_plots)
+
+            self.ip = eval(str(lf.ip))
+            self.port = eval(str(lf.port))
+            self.channel = eval(str(lf.channel))
+            self.nb_chan = eval(str(lf.nb_chan))
+            self.Format = eval(str(lf.Format))
+
+            self.change_plots()
+
+            print('Parameters loaded from file ' + filename[0])
 
     def set_signal_slot(self):
         self.p.param('Plot parameters', 'Start').sigActivated.connect(self.start)
@@ -329,7 +370,6 @@ class Pyqtgraph_app(QMainWindow):
         sys.exit()
 
     def start(self):
-        #self.change_variables(self.nb_plots)
         self.init_communication()
         self.p.param('Plot parameters', 'Start').setOpts(enabled=False)
         self.p.param('Plot parameters', 'Stop').setOpts(enabled=True)
@@ -406,7 +446,6 @@ class data_acq_class(pg.GraphicsLayoutWidget):
 
     def init_variables(self):
         self.thread_running = True
-        #self.data = [0]
 
     def update_thread(self):
         update_thread = threading.Timer(self.dt, self.update)
@@ -422,10 +461,6 @@ class data_acq_class(pg.GraphicsLayoutWidget):
         recv = self.sock.recv()
         data = struct.unpack(self.Format.encode('utf-8'), recv)
         self.update_plot.emit(self.i, list(data))
-
-        #if self.thread_running:
-        #    time.sleep(self.dt)
-        #    self.update()
 
 #======================================================================================
 #### Display
