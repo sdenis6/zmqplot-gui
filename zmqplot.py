@@ -1,18 +1,24 @@
 #!/usr/bin/env python
 
-from pyqtgraph.Qt import (
-    QtWidgets,
-    QtGui,
+from pyqtgraph.Qt.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QSplitter,
+    QFileDialog,
 )
 
-import pyqtgraph as pg
-from pyqtgraph.Qt import QtCore
+from pyqtgraph.Qt.QtGui import (
+    QAction
+)
 
 from pyqtgraph.parametertree import (
     Parameter,
     ParameterTree,
     ParameterItem,
 )
+
+import pyqtgraph as pg
+from pyqtgraph.Qt import QtCore
 
 import time
 import struct
@@ -21,9 +27,11 @@ import argparse
 import sys
 import threading
 import numpy
+from lxml import objectify
+import lxml.etree
 
 NB_PLOTS = 2
-DEVICE_IP = '138.131.232.128'
+DEVICE_IP = '10.1.28.34'
 OUT_PORT = 9902
 DELAY = 0.2
 CHANNEL = 1
@@ -36,15 +44,18 @@ FOOTER = ''
 STREAM_TIME = False
 STREAM_SPECT = False
 
-class Pyqtgraph_app():
 
-    def __init__(self):
+class Pyqtgraph_app(QMainWindow):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
         self.init_args()
         self.set_window()
         self.set_signal_slot()
         self.run_app()
 
     def init_args(self):
+        #vars = objectify.Element("item")
         self.nb_plots = NB_PLOTS
         self.delay = DELAY
         self.save = SAVE
@@ -54,12 +65,12 @@ class Pyqtgraph_app():
         self.stream_spect = STREAM_SPECT
 
     def set_window(self):
-        self.app = pg.mkQApp()
-        self.w = QtWidgets.QMainWindow()
-        #self.w.setWindowTitle('zmqplotqt.py IP:'+str(self.ip)+':'+str(self.port)+' ch'+str(self.channel)+' dt='+str(self.delay)+'s')
+        self.setWindowTitle('zmqplot.py')
 
-        self.wid = QtWidgets.QSplitter()
-        self.w.setCentralWidget(self.wid)
+        self.init_menubar()
+
+        self.wid = QSplitter()
+        self.setCentralWidget(self.wid)
 
         self.params = [
             {'name': 'Plot parameters', 'type': 'group', 'children': [
@@ -85,6 +96,34 @@ class Pyqtgraph_app():
         self.wid.addWidget(self.plot_layout)
 
         self.init_plots()
+
+
+    def init_menubar(self):
+        menu_bar = self.menuBar()
+        file_menu = menu_bar.addMenu('&File')
+        #edit_menu = menu_bar.addMenu('&Edit')
+        #help_menu = menu_bar.addMenu('&Help')
+
+        file_menu.addAction('Load parameters', self.loadParametersCall)
+        file_menu.addAction('Save parameters', self.saveParametersCall)
+
+    def saveParametersCall(self):
+        def_name = time.strftime("%Y%m%d-%H%M%S", time.gmtime(time.time())) + "-myParameters.xml"
+        filename = QFileDialog.getSaveFileName(self, 'File name', def_name, "Xml files (*.xml);;All Files (*)")
+        print("save call")
+        if filename[0] == '' :
+            print('Parameters not saved')
+        else:
+            try:
+                os.remove(filename[0])
+            except:
+                pass
+            with open(filename[0], 'wb') as f:
+                f.write(lxml.etree.tostring(vars, pretty_print="true"))
+            print('Parameters saved to ' + filename[0])
+
+    def loadParametersCall(self):
+        print("load call")
 
     def set_signal_slot(self):
         self.p.param('Plot parameters', 'Start').sigActivated.connect(self.start)
@@ -279,9 +318,7 @@ class Pyqtgraph_app():
             self.chan_tree[i].param('Channel %d' % (i+1), 'Channels to display:').sigValueChanged.connect(self.tree_var_changed)
 
     def run_app(self):
-        self.w.show()
-        #self.app.aboutToQuit.connect(self.closeEvent)
-        sys.exit(self.app.exec())
+        self.show()
 
     def closeEvent(self):
         self.stop()
@@ -376,16 +413,24 @@ class data_acq_class(pg.GraphicsLayoutWidget):
         update_thread.start()
 
     def update(self):
+        update_thread = threading.Timer(self.dt, self.update)
+        if self.thread_running:
+            update_thread.start()
+            if self.dt < 0.02:
+                time.sleep(0.02)
+
         recv = self.sock.recv()
         data = struct.unpack(self.Format.encode('utf-8'), recv)
-        self.update_plot.emit(self.i, data)
+        self.update_plot.emit(self.i, list(data))
 
-        if self.thread_running:
-            time.sleep(self.dt)
-            self.update()
+        #if self.thread_running:
+        #    time.sleep(self.dt)
+        #    self.update()
 
 #======================================================================================
 #### Display
 
 if __name__ == '__main__':
-    Pyqtgraph_app()
+    app = QApplication(sys.argv)
+    window = Pyqtgraph_app()
+    sys.exit(app.exec())
