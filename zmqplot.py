@@ -31,7 +31,7 @@ from lxml import objectify
 import lxml.etree
 
 NB_PLOTS = 2
-DEVICE_IP = '10.1.28.34'
+DEVICE_IP = '192.168.0.2'
 OUT_PORT = 9902
 DELAY = 0.2
 CHANNEL = 1
@@ -82,7 +82,7 @@ class Pyqtgraph_app(QMainWindow):
             ]},
             {'name': 'Data log options', 'type': 'group', 'children': [
                 {'name': 'Save', 'type': 'bool', 'value': self.save},
-                {'name': 'Header:', 'type': 'str', 'value': self.Headers},
+                {'name': 'Headers:', 'type': 'str', 'value': self.Headers},
                 {'name': 'Footer:', 'type': 'str', 'value': self.Footer},
             ]},
         ]
@@ -150,7 +150,7 @@ class Pyqtgraph_app(QMainWindow):
 
             self.p.param('Plot parameters', 'Refresh time:').setValue(lf.delay)
             self.p.param('Data log options', 'Save').setValue(lf.save)
-            self.p.param('Data log options', 'Header:').setValue(lf.Headers)
+            self.p.param('Data log options', 'Headers:').setValue(lf.Headers)
             self.p.param('Data log options', 'Footer:').setValue(lf.Footer)
             self.p.param('Plot parameters', 'Time stream:').setValue(lf.stream_time)
             self.p.param('Plot parameters', 'Spectrum stream:').setValue(lf.stream_spect)
@@ -171,6 +171,8 @@ class Pyqtgraph_app(QMainWindow):
         self.p.param('Plot parameters', 'Stop').sigActivated.connect(self.stop)
         self.p.param('Plot parameters', 'Number of plots:').sigValueChanged.connect(self.change_plots)
         self.p.param('Data log options', 'Save').sigValueChanged.connect(self.save_changed)
+        self.p.param('Data log options', 'Headers:').sigValueChanged.connect(self.save_changed)
+        self.p.param('Data log options', 'Footer:').sigValueChanged.connect(self.save_changed)
         self.p.param('Plot parameters', 'Refresh time:').sigValueChanged.connect(self.tree_var_changed)
         self.p.param('Plot parameters', 'Time stream:').sigValueChanged.connect(self.tree_var_changed)
         self.p.param('Plot parameters', 'Spectrum stream:').sigValueChanged.connect(self.tree_var_changed)
@@ -254,7 +256,8 @@ class Pyqtgraph_app(QMainWindow):
 
     def save_changed(self):
         self.save = self.p.param('Data log options', 'Save').value()
-        self.init_data_save()
+        self.Headers = self.p.param('Data log options', 'Headers:').value()
+        self.Footer =self.p.param('Data log options', 'Footer:').value()
 
     def init_data_save(self):
         if self.Footer != '':
@@ -267,11 +270,10 @@ class Pyqtgraph_app(QMainWindow):
                 for i in range(self.nb_plots):
                     def_headers = def_headers + str(self.ip[i]) + ':' + str(self.port[i]) + '/' + str(self.channel[i])
                     def_headers = def_headers + '\t'
-                #self.data_file.write('epoch_time\tYYYY-MM-DD\thh:mm:ss.ss\t' + def_headers + '\n')
                 self.data_file.write('epoch_time\t' + def_headers + '\n')
             else:
-                #self.data_file.write('epoch_time\tYYYY-MM-DD\thh:mm:ss.ss\t' + args.Headers.replace(' ','\t') + '\n')
-                self.data_file.write('epoch_time\t' + args.Headers.replace(' ','\t') + '\n')
+                self.data_file.write('epoch_time\t' + self.Headers.replace(' ','\t') + '\n')
+        print("Created ", self.filename)
 
     def init_communication(self):
         context = zmq.Context()
@@ -283,7 +285,6 @@ class Pyqtgraph_app(QMainWindow):
 
     def init_plots(self):
         self.init_variables()
-        self.init_data_save()
 
         self.tree.setParameters(self.p, showTop=False)
         for i in range(self.nb_plots):
@@ -373,6 +374,7 @@ class Pyqtgraph_app(QMainWindow):
         self.init_communication()
         self.p.param('Plot parameters', 'Start').setOpts(enabled=False)
         self.p.param('Plot parameters', 'Stop').setOpts(enabled=True)
+        self.init_data_save()
 
         for i in range(self.nb_plots):
             self.data_acq_class[i] = data_acq_class(self.sock[i], self.dt, self.Format[i], i)
